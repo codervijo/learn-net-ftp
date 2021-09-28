@@ -44,15 +44,15 @@ typedef struct {
 } thakifd_server_t;
 
 typedef struct thakifd_user_s {
-	char                   name[STRSIZE];
-	int                    id;
+	char                    name[STRSIZE];
+	int                     id;
 	struct thakifd_client_s *client;
 	struct thakifd_room_s   *room;
 } thakifd_user_t;
 
 struct userq {
-    thakifd_user_t       *usr;
-    TAILQ_ENTRY(userq) tailq;
+    thakifd_user_t          *usr;
+    TAILQ_ENTRY(userq)      tailq;
 };
 
 typedef struct userq userq_t;
@@ -72,42 +72,80 @@ typedef struct thakifd_cmd_s {
 	int   nargs;
 	char  name[STRSIZE];
 	char *desc;
+	void (*handler)(void);
 } thakifd_cmd_t;
 
+
+static void handle_user (void);
+static void handle_pass (void);
+static void handle_acct (void);
+static void handle_cwd  (void);
+static void handle_cdup (void);
+static void handle_smnt (void);
+static void handle_quit (void);
+static void handle_rein (void);
+static void handle_port (void);
+static void handle_pasv (void);
+static void handle_type (void);
+static void handle_stru (void);
+static void handle_mode (void);
+static void handle_retr (void);
+static void handle_stor (void);
+static void handle_stou (void);
+static void handle_appe (void);
+static void handle_allo (void);
+static void handle_rest (void);
+static void handle_rnfr (void);
+static void handle_rnto (void);
+static void handle_abor (void); 
+static void handle_dele (void);
+static void handle_rmd  (void);
+static void handle_mkd  (void);
+static void handle_pwd  (void);
+static void handle_list (void);
+static void handle_nlst (void);
+static void handle_site (void);
+static void handle_syst (void);
+static void handle_stat (void);
+static void handle_help (void); 
+static void handle_noop (void);
+
+
+
 static thakifd_cmd_t ftp_cmds[] = {
-    {1, 1, "USER", " ",},
-    {1, 1, "PASS", " ",},
-    {1, 1, "ACCT", " ",}, 
-    {1, 1, "CWD ", " ",},
-    {1, 1, "CDUP", " ",}, 
-    {1, 1, "SMNT", " ",},
-    {1, 1, "QUIT", " ",}, 
-    {1, 1, "REIN", " ",}, 
-    {1, 1, "PORT", " ",}, 
-    {1, 1, "PASV", " ",}, 
-    {1, 1, "TYPE", " ",}, 
-    {1, 1, "STRU", " ",}, 
-    {1, 1, "MODE", " ",}, 
-    {1, 1, "RETR", " ",},
-    {1, 1, "STOR", " ",},
-    {1, 1, "STOU", " ",}, 
-    {1, 1, "APPE", " ",},
-    {1, 1, "ALLO", " ",},
-    {1, 1, "REST", " ",},
-    {1, 1, "RNFR", " ",},
-    {1, 1, "RNTO", " ",},
-    {1, 1, "ABOR", " ",}, 
-    {1, 1, "DELE", " ",}, 
-    {1, 1, "RMD ", " ",}, 
-    {1, 1, "MKD ", " ",}, 
-    {1, 1, "PWD ", " ",}, 
-    {1, 1, "LIST", " ",}, 
-    {1, 1, "NLST", " ",}, 
-    {1, 1, "SITE", " ",},
-    {1, 1, "SYST", " ",}, 
-    {1, 1, "STAT", " ",}, 
-    {1, 1, "HELP", " ",}, 
-    {1, 1, "NOOP", " ",}, 
+    { 1, 1, "USER", " ", handle_user },
+    { 2, 1, "PASS", " ", handle_pass },
+    { 3, 1, "ACCT", " ", handle_acct },
+    { 4, 1, "CWD",  " ", handle_cwd  },
+    { 5, 1, "CDUP", " ", handle_cdup },
+    { 6, 1, "SMNT", " ", handle_smnt },
+    { 7, 1, "QUIT", " ", handle_quit },
+    { 8, 1, "REIN", " ", handle_rein },
+    { 9, 1, "PORT", " ", handle_port },
+    {10, 1, "PASV", " ", handle_pasv },
+    {11, 1, "TYPE", " ", handle_type },
+    {12, 1, "STRU", " ", handle_stru },
+    {13, 1, "MODE", " ", handle_mode },
+    {14, 1, "RETR", " ", handle_retr },
+    {15, 1, "STOR", " ", handle_stor },
+    {16, 1, "STOU", " ", handle_stou },
+    {17, 1, "APPE", " ", handle_appe },
+    {18, 1, "ALLO", " ", handle_allo },
+    {19, 1, "REST", " ", handle_rest },
+    {20, 1, "RNFR", " ", handle_rnfr },
+    {21, 1, "RNTO", " ", handle_rnto },
+    {22, 1, "ABOR", " ", handle_abor }, 
+    {23, 1, "DELE", " ", handle_dele },
+    {24, 1, "RMD",  " ", handle_rmd  },
+    {25, 1, "MKD",  " ", handle_mkd  },
+    {26, 1, "PWD",  " ", handle_pwd  },
+    {27, 1, "LIST", " ", handle_list },
+    {28, 1, "NLST", " ", handle_nlst },
+    {29, 1, "SITE", " ", handle_site },
+    {30, 1, "SYST", " ", handle_syst },
+    {31, 1, "STAT", " ", handle_stat },
+    {32, 1, "HELP", " ", handle_help }, 
+    {33, 1, "NOOP", " ", handle_noop }, 
 };
 
 typedef struct thakifd_resp_s {
@@ -477,6 +515,204 @@ handle_message(thakifd_client_t *client)
 		client->rptr = RBUF_INCR_RPTR(client, 1);
 	sprintf(wbuf, "%s : %s\n", client->user->name, rbuf);
 	return SUCCESS;
+}
+
+static void
+handle_user (void)
+{
+	return;
+}
+
+static void
+handle_pass (void)
+{
+	return;
+}
+
+static void
+handle_acct (void)
+{
+	return;
+}
+
+static void
+handle_cwd  (void)
+{
+	return;
+}
+
+static void
+handle_cdup (void)
+{
+	return;
+}
+
+static void
+handle_smnt (void)
+{
+	return;
+}
+
+static void
+handle_quit (void)
+{
+	return;
+}
+
+static void
+handle_rein (void)
+{
+	return;
+}
+
+static void
+handle_port (void)
+{
+	return;
+}
+
+static void
+handle_pasv (void)
+{
+	return;
+}
+
+static void
+handle_type (void)
+{
+	return;
+}
+
+static void
+handle_stru (void)
+{
+	return;
+}
+
+static void
+handle_mode (void)
+{
+	return;
+}
+
+static void
+handle_retr (void)
+{
+	return;
+}
+
+static void
+handle_stor (void)
+{
+	return;
+}
+
+static void
+handle_stou (void)
+{
+	return;
+}
+
+static void
+handle_appe (void)
+{
+	return;
+}
+
+static void
+handle_allo (void)
+{
+	return;
+}
+
+static void
+handle_rest (void)
+{
+	return;
+}
+
+static void
+handle_rnfr (void)
+{
+	return;
+}
+
+static void
+handle_rnto (void)
+{
+	return;
+}
+
+static void
+handle_abor (void)
+{
+	return;
+} 
+
+static void
+handle_dele (void)
+{
+	return;
+}
+
+static void
+handle_rmd  (void)
+{
+	return;
+}
+
+static void
+handle_mkd  (void)
+{
+	return;
+}
+
+static void
+handle_pwd  (void)
+{
+	return;
+}
+
+static void
+handle_list (void)
+{
+	return;
+}
+
+static void
+handle_nlst (void)
+{
+	return;
+}
+ 
+static void
+handle_site (void)
+{
+	return;
+}
+
+static void
+handle_syst (void)
+{
+	return;
+}
+
+static void
+handle_stat (void)
+{
+	return;
+}
+
+static void
+handle_help (void)
+{
+	return;
+} 
+
+static void
+handle_noop (void)
+{
+	return;
 }
 
 thakifd_status_t
