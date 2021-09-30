@@ -23,10 +23,11 @@
 #define BUFSIZE       1024
 #define STRSIZE       512
 #define MAX_USERS     1024
-#define MAX_ROOMS     10
 #define NAMESIZE      20
 #define MAX_EVENTS    5
 #define MAX_CLIENTS   1024
+
+#define THAKIFD_FTP_ROOT "/home/vijo/tmp"
 
 typedef enum {
 	FAILURE = -1,
@@ -39,7 +40,6 @@ typedef struct {
 	int                     tmp;
 	int 				    epoll_fd;
 	struct thakifd_user_s   **userslist;
-	struct thakifd_room_s   **roomslist;
 	struct thakifd_client_s **clients;
 } thakifd_server_t;
 
@@ -47,7 +47,6 @@ typedef struct thakifd_user_s {
 	char                    name[STRSIZE];
 	int                     id;
 	struct thakifd_client_s *client;
-	struct thakifd_room_s   *room;
 } thakifd_user_t;
 
 struct userq {
@@ -57,10 +56,6 @@ struct userq {
 
 typedef struct userq userq_t;
 typedef TAILQ_HEAD(uhead, userq) uinr_head_t;
-
-typedef struct thakifd_room_s {
-	int           id;
-} thakifd_room_t;
 
 typedef enum {
 	JOIN_EVENT = 1,
@@ -74,79 +69,6 @@ typedef struct thakifd_cmd_s {
 	char *desc;
 	void (*handler)(void);
 } thakifd_cmd_t;
-
-
-static void handle_user (void);
-static void handle_pass (void);
-static void handle_acct (void);
-static void handle_cwd  (void);
-static void handle_cdup (void);
-static void handle_smnt (void);
-static void handle_quit (void);
-static void handle_rein (void);
-static void handle_port (void);
-static void handle_pasv (void);
-static void handle_type (void);
-static void handle_stru (void);
-static void handle_mode (void);
-static void handle_retr (void);
-static void handle_stor (void);
-static void handle_stou (void);
-static void handle_appe (void);
-static void handle_allo (void);
-static void handle_rest (void);
-static void handle_rnfr (void);
-static void handle_rnto (void);
-static void handle_abor (void); 
-static void handle_dele (void);
-static void handle_rmd  (void);
-static void handle_mkd  (void);
-static void handle_pwd  (void);
-static void handle_list (void);
-static void handle_nlst (void);
-static void handle_site (void);
-static void handle_syst (void);
-static void handle_stat (void);
-static void handle_help (void); 
-static void handle_noop (void);
-
-
-
-static thakifd_cmd_t ftp_cmds[] = {
-    { 1, 1, "USER", " ", handle_user },
-    { 2, 1, "PASS", " ", handle_pass },
-    { 3, 1, "ACCT", " ", handle_acct },
-    { 4, 1, "CWD",  " ", handle_cwd  },
-    { 5, 1, "CDUP", " ", handle_cdup },
-    { 6, 1, "SMNT", " ", handle_smnt },
-    { 7, 1, "QUIT", " ", handle_quit },
-    { 8, 1, "REIN", " ", handle_rein },
-    { 9, 1, "PORT", " ", handle_port },
-    {10, 1, "PASV", " ", handle_pasv },
-    {11, 1, "TYPE", " ", handle_type },
-    {12, 1, "STRU", " ", handle_stru },
-    {13, 1, "MODE", " ", handle_mode },
-    {14, 1, "RETR", " ", handle_retr },
-    {15, 1, "STOR", " ", handle_stor },
-    {16, 1, "STOU", " ", handle_stou },
-    {17, 1, "APPE", " ", handle_appe },
-    {18, 1, "ALLO", " ", handle_allo },
-    {19, 1, "REST", " ", handle_rest },
-    {20, 1, "RNFR", " ", handle_rnfr },
-    {21, 1, "RNTO", " ", handle_rnto },
-    {22, 1, "ABOR", " ", handle_abor }, 
-    {23, 1, "DELE", " ", handle_dele },
-    {24, 1, "RMD",  " ", handle_rmd  },
-    {25, 1, "MKD",  " ", handle_mkd  },
-    {26, 1, "PWD",  " ", handle_pwd  },
-    {27, 1, "LIST", " ", handle_list },
-    {28, 1, "NLST", " ", handle_nlst },
-    {29, 1, "SITE", " ", handle_site },
-    {30, 1, "SYST", " ", handle_syst },
-    {31, 1, "STAT", " ", handle_stat },
-    {32, 1, "HELP", " ", handle_help }, 
-    {33, 1, "NOOP", " ", handle_noop }, 
-};
 
 typedef struct thakifd_resp_s {
 	int   id;
@@ -201,6 +123,78 @@ static struct option long_options[] = {
 	{ "help",     no_argument,       &cliopts.help_flag,    1},
 	{ 0, 0, 0, 0}
 };
+
+static void handle_user (void);
+static void handle_pass (void);
+static void handle_acct (void);
+static void handle_cwd  (void);
+static void handle_cdup (void);
+static void handle_smnt (void);
+static void handle_quit (void);
+static void handle_rein (void);
+static void handle_port (void);
+static void handle_pasv (void);
+static void handle_type (void);
+static void handle_stru (void);
+static void handle_mode (void);
+static void handle_retr (void);
+static void handle_stor (void);
+static void handle_stou (void);
+static void handle_appe (void);
+static void handle_allo (void);
+static void handle_rest (void);
+static void handle_rnfr (void);
+static void handle_rnto (void);
+static void handle_abor (void); 
+static void handle_dele (void);
+static void handle_rmd  (void);
+static void handle_mkd  (void);
+static void handle_pwd  (void);
+static void handle_list (void);
+static void handle_nlst (void);
+static void handle_site (void);
+static void handle_syst (void);
+static void handle_stat (void);
+static void handle_help (void); 
+static void handle_noop (void);
+
+static thakifd_cmd_t ftp_cmds[] = {
+    { 1, 1, "USER", " ", handle_user },
+    { 2, 1, "PASS", " ", handle_pass },
+    { 3, 1, "ACCT", " ", handle_acct },
+    { 4, 1, "CWD",  " ", handle_cwd  },
+    { 5, 1, "CDUP", " ", handle_cdup },
+    { 6, 1, "SMNT", " ", handle_smnt },
+    { 7, 1, "QUIT", " ", handle_quit },
+    { 8, 1, "REIN", " ", handle_rein },
+    { 9, 1, "PORT", " ", handle_port },
+    {10, 1, "PASV", " ", handle_pasv },
+    {11, 1, "TYPE", " ", handle_type },
+    {12, 1, "STRU", " ", handle_stru },
+    {13, 1, "MODE", " ", handle_mode },
+    {14, 1, "RETR", " ", handle_retr },
+    {15, 1, "STOR", " ", handle_stor },
+    {16, 1, "STOU", " ", handle_stou },
+    {17, 1, "APPE", " ", handle_appe },
+    {18, 1, "ALLO", " ", handle_allo },
+    {19, 1, "REST", " ", handle_rest },
+    {20, 1, "RNFR", " ", handle_rnfr },
+    {21, 1, "RNTO", " ", handle_rnto },
+    {22, 1, "ABOR", " ", handle_abor }, 
+    {23, 1, "DELE", " ", handle_dele },
+    {24, 1, "RMD",  " ", handle_rmd  },
+    {25, 1, "MKD",  " ", handle_mkd  },
+    {26, 1, "PWD",  " ", handle_pwd  },
+    {27, 1, "LIST", " ", handle_list },
+    {28, 1, "NLST", " ", handle_nlst },
+    {29, 1, "SITE", " ", handle_site },
+    {30, 1, "SYST", " ", handle_syst },
+    {31, 1, "STAT", " ", handle_stat },
+    {32, 1, "HELP", " ", handle_help }, 
+    {33, 1, "NOOP", " ", handle_noop }, 
+};
+
+#define NUM_FTP_CMDS (sizeof(ftp_cmds)/sizeof(thakifd_cmd_t));
 
 /* DJB2 algo to hash strings */
 unsigned long
@@ -348,7 +342,7 @@ thakifd_send_msg(thakifd_client_t *client, char *msg)
 }
 
 thakifd_status_t
-thakifd_bcast_event(thakifd_room_t *room, thakifd_event_t event, thakifd_user_t *usr)
+thakifd_bcast_event(thakifd_event_t event, thakifd_user_t *usr)
 {
 	userq_t *u;
 	char wbuf[BUFSIZE];
@@ -364,16 +358,13 @@ thakifd_status_t
 thakifd_join_room(thakifd_client_t *client, char *user, char *room)
 {
 	thakifd_user_t *u;
-	thakifd_room_t *r;
 	userq_t      *uinr;
 	int uid, rid;
 
 	uid = hash(user) % MAX_USERS;
-	rid = hash(room) % MAX_ROOMS;
 
 	u = client->server->userslist[uid];
-	r = client->server->roomslist[rid];
-	fprintf(stderr, "Uid:%d,u:%p Rid:%d, r:%p\n", uid, u, rid, r);
+	fprintf(stderr, "Uid:%d,u:%p\n", uid, u);
 	if (u == NULL) {
 		u = (thakifd_user_t *)malloc(sizeof(thakifd_user_t));
 		if (u == NULL) {
@@ -388,27 +379,13 @@ thakifd_join_room(thakifd_client_t *client, char *user, char *room)
 	memcpy(u->name, user, strlen(user));
 	u->client = client;
 	client->user = u;
-	if (r == NULL) {
-		r = (thakifd_room_t *)malloc(sizeof(thakifd_room_t));
-		if (r == NULL) {
-			fprintf(stderr, "Failed to allocate memory for room\n");
-			return FAILURE;
-		}
-		memset(r, 0, sizeof(thakifd_room_t));
-		//memcpy(r->name, room, strlen(room));
-		//r->usrsinroom = (struct usrq *)malloc(sizeof(struct usrq));
-		//memset(r->usrsinroom, 0, sizeof(struct usrq));
-		//r->usrsinroom = TAILQ_HEAD_INITIALIZER(r->usrsinroom);
-	}  /* TODO else handle hash chains */
 	client->state = THAKIFD_JOINED;
 	uinr = (userq_t *)malloc(sizeof(userq_t));
 	memset(uinr, 0, sizeof(userq_t));
 	uinr->usr = u;
 
 	client->server->userslist[uid] = u;
-	client->server->roomslist[rid] = r;
-	//fprintf(stderr, "Added user %s to room %s\n", u->name, r->name);
-	thakifd_bcast_event(r, JOIN_EVENT, u);
+	thakifd_bcast_event(JOIN_EVENT, u);
 	return SUCCESS;
 }
 
@@ -489,7 +466,6 @@ handle_message(thakifd_client_t *client)
 	char rbuf[BUFSIZE] = {0};
 	char wbuf[BUFSIZE] = {0};
 	userq_t *u;
-	thakifd_room_t *room;
 
 	if (client->state != THAKIFD_JOINED) {
 		fprintf(stderr, "Got message <%d> while unjoined\n", client->rptr);
@@ -520,198 +496,231 @@ handle_message(thakifd_client_t *client)
 static void
 handle_user (void)
 {
+	printf("Handling command %s\n", "USER");
 	return;
 }
 
 static void
 handle_pass (void)
 {
+	printf("Handling command %s\n", "PASS");
 	return;
 }
 
 static void
 handle_acct (void)
 {
+	printf("Handling command %s\n", "ACCT");
 	return;
 }
 
 static void
 handle_cwd  (void)
 {
+	printf("Handling command %s\n", "CWD");
 	return;
 }
 
 static void
 handle_cdup (void)
 {
+	printf("Handling command %s\n", "CDUP");
 	return;
 }
 
 static void
 handle_smnt (void)
 {
+	printf("Handling command %s\n", "SMNT");
 	return;
 }
 
 static void
 handle_quit (void)
 {
+	printf("Handling command %s\n", "QUIT");
 	return;
 }
 
 static void
 handle_rein (void)
 {
+	printf("Handling command %s\n", "REIN");
 	return;
 }
 
 static void
 handle_port (void)
 {
+	printf("Handling command %s\n", "PORT");
 	return;
 }
 
 static void
 handle_pasv (void)
 {
+	printf("Handling command %s\n", "PASV");
 	return;
 }
 
 static void
 handle_type (void)
 {
+	printf("Handling command %s\n", "TYPE");
 	return;
 }
 
 static void
 handle_stru (void)
 {
+	printf("Handling command %s\n", "STRU");
 	return;
 }
 
 static void
 handle_mode (void)
 {
+	printf("Handling command %s\n", "MODE");
 	return;
 }
 
 static void
 handle_retr (void)
 {
+	printf("Handling command %s\n", "RETR");
 	return;
 }
 
 static void
 handle_stor (void)
 {
+	printf("Handling command %s\n", "STOR");
 	return;
 }
 
 static void
 handle_stou (void)
 {
+	printf("Handling command %s\n", "STOU");
 	return;
 }
 
 static void
 handle_appe (void)
 {
+	printf("Handling command %s\n", "APPE");
 	return;
 }
 
 static void
 handle_allo (void)
 {
+	printf("Handling command %s\n", "ALLO");
 	return;
 }
 
 static void
 handle_rest (void)
 {
+	printf("Handling command %s\n", "REST");
 	return;
 }
 
 static void
 handle_rnfr (void)
 {
+	printf("Handling command %s\n", "RNFR");
 	return;
 }
 
 static void
 handle_rnto (void)
 {
+	printf("Handling command %s\n", "RNTO");
 	return;
 }
 
 static void
 handle_abor (void)
 {
+	printf("Handling command %s\n", "ABOR");
 	return;
 } 
 
 static void
 handle_dele (void)
 {
+	printf("Handling command %s\n", "DELE");
 	return;
 }
 
 static void
 handle_rmd  (void)
 {
+	printf("Handling command %s\n", "RMD");
 	return;
 }
 
 static void
 handle_mkd  (void)
 {
+	printf("Handling command %s\n", "MKD");
 	return;
 }
 
 static void
 handle_pwd  (void)
 {
+	printf("Handling command %s\n", "PWD");
 	return;
 }
 
 static void
 handle_list (void)
 {
+	printf("Handling command %s\n", "LIST");
 	return;
 }
 
 static void
 handle_nlst (void)
 {
+	printf("Handling command %s\n", "NLST");
 	return;
 }
  
 static void
 handle_site (void)
 {
+	printf("Handling command %s\n", "SITE");
 	return;
 }
 
 static void
 handle_syst (void)
 {
+	printf("Handling command %s\n", "SYST");
 	return;
 }
 
 static void
 handle_stat (void)
 {
+	printf("Handling command %s\n", "STAT");
 	return;
 }
 
 static void
 handle_help (void)
 {
+	printf("Handling command %s\n", "HELP");
 	return;
 } 
 
 static void
 handle_noop (void)
 {
+	printf("Handling command %s\n", "NOOP");
 	return;
 }
 
@@ -722,18 +731,20 @@ handle_commands(thakifd_client_t *client)
 		/* Skip over any control characters */
 		while (client->rbuf[client->rptr] == 0 || iscntrl(client->rbuf[client->rptr]))
 			client->rptr = RBUF_INCR_RPTR(client, 1);
-		switch (toupper((char)*RBUF_READ_START(client))) {
-		case 'J':
-			handle_join(client);
-			return SUCCESS;
-
-		case 'L':
-			handle_leave(client);
-			return SUCCESS;
-
-		default:
-			return handle_message(client);
+		for (int i = 0; i < sizeof(ftp_cmds)/sizeof(thakifd_cmd_t); i++) {
+			if ((toupper((char)*RBUF_READ_START(client))) == ftp_cmds[i].name[0]) {
+				int n = strlen(ftp_cmds[i].name);
+				if (strncasecmp(ftp_cmds[i].name, RBUF_READ_START(client), n) == 0) {
+					printf("Found command %s\n", ftp_cmds[i].name);
+					client->rptr = RBUF_INCR_RPTR(client, n+1);
+					while (client->rbuf[client->rptr] == 0 || client->rbuf[client->rptr] != '\n')
+						client->rptr = RBUF_INCR_RPTR(client, 1);
+					(*ftp_cmds[i].handler)();
+					return SUCCESS;
+				}
+			}
 		}
+		printf("Command from client not found\n");
 	}
 	return SUCCESS;
 }
@@ -967,13 +978,11 @@ main(int argc, char *argv[])
 
 	memset(&thakifd, 0, sizeof(thakifd_server_t));
 	thakifd.userslist = (thakifd_user_t **)malloc(MAX_USERS*sizeof(thakifd_user_t *));
-	thakifd.roomslist = (thakifd_room_t **)malloc(MAX_ROOMS*sizeof(thakifd_room_t *));
-	if (thakifd.userslist == NULL || thakifd.roomslist == NULL) {
+	if (thakifd.userslist == NULL) {
 		fprintf(stderr, "Failed to get memory for users and rooms\n");
 		exit(-2);
 	}
 	memset(thakifd.userslist, 0, MAX_USERS*sizeof(thakifd_user_t *));
-	memset(thakifd.roomslist, 0, MAX_ROOMS*sizeof(thakifd_room_t *));
 
 	thakifd.clients = (thakifd_client_t **)malloc(MAX_CLIENTS*sizeof(thakifd_client_t *));
 	if (thakifd.clients == NULL) {
