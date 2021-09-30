@@ -1,0 +1,4 @@
+TODO
+
+  ☐ Add a global root directory
+  ☐ Add to per client state (root dir, cwd)
