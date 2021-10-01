@@ -57,23 +57,18 @@ struct userq {
 typedef struct userq userq_t;
 typedef TAILQ_HEAD(uhead, userq) uinr_head_t;
 
-typedef enum {
-	JOIN_EVENT = 1,
-	LEAVE_EVENT
-} thakifd_event_t;
-
 typedef struct thakifd_cmd_s {
-	int   id;
-	int   nargs;
-	char  name[STRSIZE];
-	char *desc;
-	void (*handler)(void);
+	int              id;
+	int              nargs;
+	char             name[STRSIZE];
+	char             *desc;
+	void             (*handler)(void);
 } thakifd_cmd_t;
 
 typedef struct thakifd_resp_s {
-	int   id;
-	char  name[STRSIZE];
-	char *desc;
+	int              id;
+	char             name[STRSIZE];
+	char             *desc;
 } thakifd_resp_t;
 
 typedef enum {
@@ -83,12 +78,14 @@ typedef enum {
 } thakifd_client_state_t;
 
 typedef struct thakifd_client_s {
-	int             fd;
-	int             state;
-	int             wptr;
-	int             rptr;
-	char            rbuf[BUFSIZE];
-	char            wbuf[BUFSIZE];
+	int              fd;
+	int              state;
+	int              wptr;
+	int              rptr;
+	char             rbuf[BUFSIZE];
+	char             wbuf[BUFSIZE];
+	char             rootpath[PATH_MAX];
+	char             cwd[PATH_MAX];
 	thakifd_user_t   *user;
 	thakifd_server_t *server;
 } thakifd_client_t;
@@ -106,12 +103,12 @@ typedef struct thakifd_client_s {
 #define RBUF_IS_EMPTY(c)       ((c)->wptr == (c)->rptr)
 
 typedef struct thakifd_cli_opts_s {
-	int verbose_flag;
-	int help_flag;
-	int cli_err;
-	int bg_flag;
-	int dir_flag;
-	int port;
+	int      verbose_flag;
+	int      help_flag;
+	int      cli_err;
+	int      bg_flag;
+	int      dir_flag;
+	int      port;
 } thakifd_cli_t;
 
 thakifd_cli_t cliopts;
@@ -315,6 +312,7 @@ thakifd_accept(thakifd_server_t *server)
 	}
 	memset(server->clients[cid], 0, sizeof(thakifd_client_t));
 	server->clients[cid]->fd = cfd;
+
 	int status = fcntl(cfd, F_SETFL, fcntl(cfd, F_GETFL, 0) | O_NONBLOCK);	
 	if (status == -1){
   		perror("calling fcntl");
@@ -342,7 +340,7 @@ thakifd_send_msg(thakifd_client_t *client, char *msg)
 }
 
 thakifd_status_t
-thakifd_bcast_event(thakifd_event_t event, thakifd_user_t *usr)
+thakifd_bcast_event(thakifd_user_t *usr)
 {
 	userq_t *u;
 	char wbuf[BUFSIZE];
@@ -385,7 +383,7 @@ thakifd_join_room(thakifd_client_t *client, char *user, char *room)
 	uinr->usr = u;
 
 	client->server->userslist[uid] = u;
-	thakifd_bcast_event(JOIN_EVENT, u);
+	thakifd_bcast_event(u);
 	return SUCCESS;
 }
 
