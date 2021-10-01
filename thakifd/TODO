@@ -2,3 +2,44 @@ TODO
 
   ☐ Add a global root directory
   ☐ Add to per client state (root dir, cwd)
+  ☐ Add support for 0 parameter commands
+  ☐ Add support for CDUP <CRLF>
+  ☐ Add support for QUIT <CRLF>
+  ☐ Add support for REIN <CRLF>
+  ☐ Add support for PASV <CRLF>
+  ☐ Add support for STOU <CRLF>
+  ☐ Add support for ABOR <CRLF>
+  ☐ Add support for PWD  <CRLF>
+  ☐ Add support for SYST <CRLF>
+  ☐ Add support for NOOP <CRLF>
+
+  ☐ Add support for HELP [<SP> <string>] <CRLF>
+
+  ☐ Add support for LIST [<SP> <pathname>] <CRLF>
+  ☐ Add support for NLST [<SP> <pathname>] <CRLF>
+  ☐ Add support for CWD  <SP> <pathname> <CRLF>
+  ☐ Add support for RNFR <SP> <pathname> <CRLF>
+  ☐ Add support for RNTO <SP> <pathname> <CRLF>
+  ☐ Add support for DELE <SP> <pathname> <CRLF>
+  ☐ Add support for RMD  <SP> <pathname> <CRLF>
+  ☐ Add support for MKD  <SP> <pathname> <CRLF>
+  ☐ Add support for RETR <SP> <pathname> <CRLF>
+  ☐ Add support for STOR <SP> <pathname> <CRLF>
+  ☐ Add support for APPE <SP> <pathname> <CRLF>
+
+  ☐ Add support for USER <SP> <username> <CRLF>
+  ☐ Add support for PASS <SP> <password> <CRLF>
+  ☐ Add support for ACCT <SP> <account-information> <CRLF>
+  ☐ Add support for SMNT <SP> <pathname> <CRLF>
+  ☐ Add support for PORT <SP> <host-port> <CRLF>
+  ☐ Add support for TYPE <SP> <type-code> <CRLF>
+  ☐ Add support for STRU <SP> <structure-code> <CRLF>
+  ☐ Add support for MODE <SP> <mode-code> <CRLF>
+  ☐ Add support for REST <SP> <marker> <CRLF>
+  ☐ Add support for SITE <SP> <string> <CRLF>
+
+  ☐ Add support for STAT [<SP> <pathname>] <CRLF>
+
+  ☐ Support ALLO <SP> <decimal-integer>
+      [<SP> R <SP> <decimal-integer>] <CRLF>
+                
