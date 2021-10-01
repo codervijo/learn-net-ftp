@@ -62,7 +62,7 @@ typedef struct thakifd_cmd_s {
 	int              nargs;
 	char             name[STRSIZE];
 	char             *desc;
-	void             (*handler)(void);
+	void             (*handler)(struct thakifd_client_s *client);
 } thakifd_cmd_t;
 
 typedef struct thakifd_resp_s {
@@ -121,39 +121,39 @@ static struct option long_options[] = {
 	{ 0, 0, 0, 0}
 };
 
-static void handle_user (void);
-static void handle_pass (void);
-static void handle_acct (void);
-static void handle_cwd  (void);
-static void handle_cdup (void);
-static void handle_smnt (void);
-static void handle_quit (void);
-static void handle_rein (void);
-static void handle_port (void);
-static void handle_pasv (void);
-static void handle_type (void);
-static void handle_stru (void);
-static void handle_mode (void);
-static void handle_retr (void);
-static void handle_stor (void);
-static void handle_stou (void);
-static void handle_appe (void);
-static void handle_allo (void);
-static void handle_rest (void);
-static void handle_rnfr (void);
-static void handle_rnto (void);
-static void handle_abor (void); 
-static void handle_dele (void);
-static void handle_rmd  (void);
-static void handle_mkd  (void);
-static void handle_pwd  (void);
-static void handle_list (void);
-static void handle_nlst (void);
-static void handle_site (void);
-static void handle_syst (void);
-static void handle_stat (void);
-static void handle_help (void); 
-static void handle_noop (void);
+static void handle_user (thakifd_client_t *client);
+static void handle_pass (thakifd_client_t *client);
+static void handle_acct (thakifd_client_t *client);
+static void handle_cwd  (thakifd_client_t *client);
+static void handle_cdup (thakifd_client_t *client);
+static void handle_smnt (thakifd_client_t *client);
+static void handle_quit (thakifd_client_t *client);
+static void handle_rein (thakifd_client_t *client);
+static void handle_port (thakifd_client_t *client);
+static void handle_pasv (thakifd_client_t *client);
+static void handle_type (thakifd_client_t *client);
+static void handle_stru (thakifd_client_t *client);
+static void handle_mode (thakifd_client_t *client);
+static void handle_retr (thakifd_client_t *client);
+static void handle_stor (thakifd_client_t *client);
+static void handle_stou (thakifd_client_t *client);
+static void handle_appe (thakifd_client_t *client);
+static void handle_allo (thakifd_client_t *client);
+static void handle_rest (thakifd_client_t *client);
+static void handle_rnfr (thakifd_client_t *client);
+static void handle_rnto (thakifd_client_t *client);
+static void handle_abor (thakifd_client_t *client); 
+static void handle_dele (thakifd_client_t *client);
+static void handle_rmd  (thakifd_client_t *client);
+static void handle_mkd  (thakifd_client_t *client);
+static void handle_pwd  (thakifd_client_t *client);
+static void handle_list (thakifd_client_t *client);
+static void handle_nlst (thakifd_client_t *client);
+static void handle_site (thakifd_client_t *client);
+static void handle_syst (thakifd_client_t *client);
+static void handle_stat (thakifd_client_t *client);
+static void handle_help (thakifd_client_t *client); 
+static void handle_noop (thakifd_client_t *client);
 
 static thakifd_cmd_t ftp_cmds[] = {
     { 1, 1, "USER", " ", handle_user },
@@ -312,7 +312,8 @@ thakifd_accept(thakifd_server_t *server)
 	}
 	memset(server->clients[cid], 0, sizeof(thakifd_client_t));
 	server->clients[cid]->fd = cfd;
-
+    memcpy(server->clients[cid]->rootpath, THAKIFD_FTP_ROOT, sizeof(THAKIFD_FTP_ROOT));
+    memcpy(server->clients[cid]->cwd,      THAKIFD_FTP_ROOT, sizeof(THAKIFD_FTP_ROOT));
 	int status = fcntl(cfd, F_SETFL, fcntl(cfd, F_GETFL, 0) | O_NONBLOCK);	
 	if (status == -1){
   		perror("calling fcntl");
@@ -492,231 +493,231 @@ handle_message(thakifd_client_t *client)
 }
 
 static void
-handle_user (void)
+handle_user (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "USER");
 	return;
 }
 
 static void
-handle_pass (void)
+handle_pass (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "PASS");
 	return;
 }
 
 static void
-handle_acct (void)
+handle_acct (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "ACCT");
 	return;
 }
 
 static void
-handle_cwd  (void)
+handle_cwd  (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "CWD");
 	return;
 }
 
 static void
-handle_cdup (void)
+handle_cdup (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "CDUP");
 	return;
 }
 
 static void
-handle_smnt (void)
+handle_smnt (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "SMNT");
 	return;
 }
 
 static void
-handle_quit (void)
+handle_quit (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "QUIT");
 	return;
 }
 
 static void
-handle_rein (void)
+handle_rein (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "REIN");
 	return;
 }
 
 static void
-handle_port (void)
+handle_port (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "PORT");
 	return;
 }
 
 static void
-handle_pasv (void)
+handle_pasv (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "PASV");
 	return;
 }
 
 static void
-handle_type (void)
+handle_type (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "TYPE");
 	return;
 }
 
 static void
-handle_stru (void)
+handle_stru (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "STRU");
 	return;
 }
 
 static void
-handle_mode (void)
+handle_mode (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "MODE");
 	return;
 }
 
 static void
-handle_retr (void)
+handle_retr (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "RETR");
 	return;
 }
 
 static void
-handle_stor (void)
+handle_stor (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "STOR");
 	return;
 }
 
 static void
-handle_stou (void)
+handle_stou (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "STOU");
 	return;
 }
 
 static void
-handle_appe (void)
+handle_appe (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "APPE");
 	return;
 }
 
 static void
-handle_allo (void)
+handle_allo (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "ALLO");
 	return;
 }
 
 static void
-handle_rest (void)
+handle_rest (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "REST");
 	return;
 }
 
 static void
-handle_rnfr (void)
+handle_rnfr (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "RNFR");
 	return;
 }
 
 static void
-handle_rnto (void)
+handle_rnto (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "RNTO");
 	return;
 }
 
 static void
-handle_abor (void)
+handle_abor (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "ABOR");
 	return;
 } 
 
 static void
-handle_dele (void)
+handle_dele (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "DELE");
 	return;
 }
 
 static void
-handle_rmd  (void)
+handle_rmd  (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "RMD");
 	return;
 }
 
 static void
-handle_mkd  (void)
+handle_mkd  (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "MKD");
 	return;
 }
 
 static void
-handle_pwd  (void)
+handle_pwd  (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "PWD");
 	return;
 }
 
 static void
-handle_list (void)
+handle_list (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "LIST");
 	return;
 }
 
 static void
-handle_nlst (void)
+handle_nlst (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "NLST");
 	return;
 }
  
 static void
-handle_site (void)
+handle_site (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "SITE");
 	return;
 }
 
 static void
-handle_syst (void)
+handle_syst (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "SYST");
 	return;
 }
 
 static void
-handle_stat (void)
+handle_stat (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "STAT");
 	return;
 }
 
 static void
-handle_help (void)
+handle_help (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "HELP");
 	return;
 } 
 
 static void
-handle_noop (void)
+handle_noop (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "NOOP");
 	return;
@@ -737,7 +738,7 @@ handle_commands(thakifd_client_t *client)
 					client->rptr = RBUF_INCR_RPTR(client, n+1);
 					while (client->rbuf[client->rptr] == 0 || client->rbuf[client->rptr] != '\n')
 						client->rptr = RBUF_INCR_RPTR(client, 1);
-					(*ftp_cmds[i].handler)();
+					(*ftp_cmds[i].handler)(client);
 					return SUCCESS;
 				}
 			}
