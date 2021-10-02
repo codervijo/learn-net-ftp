@@ -9,9 +9,9 @@ TODO
   ☐ Add support for PASV <CRLF>
   ☐ Add support for STOU <CRLF>
   ☐ Add support for ABOR <CRLF>
-  ☐ Add support for PWD  <CRLF>
-  ☐ Add support for SYST <CRLF>
-  ☐ Add support for NOOP <CRLF>
+  ✔ Add support for PWD  <CRLF> @done (21-09-30 21:56)
+  ✔ Add support for SYST <CRLF> @done (21-10-01 11:33)
+  ✔ Add support for NOOP <CRLF> @done (21-09-30 22:57)
 
   ☐ Add support for HELP [<SP> <string>] <CRLF>
 
@@ -42,4 +42,8 @@ TODO
 
   ☐ Support ALLO <SP> <decimal-integer>
       [<SP> R <SP> <decimal-integer>] <CRLF>
-                
+
+  ☐ Add better support for parsing command
+  ☐ Add better handling of <SP>
+  ☐ Add better handling of <CRLF>
+  ✔ Fix sigfault at close of connection from client @done (21-10-01 22:14)
