@@ -11,12 +11,16 @@
 #include <getopt.h>
 #include <limits.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <sys/queue.h>
+#include <sys/utsname.h>
+
+#include "thakifd.h"
 
 #define BACKLOG       128
 #define THAKIFD_PORT  1234
@@ -156,46 +160,50 @@ static void handle_help (thakifd_client_t *client);
 static void handle_noop (thakifd_client_t *client);
 
 static thakifd_cmd_t ftp_cmds[] = {
-    { 1, 1, "USER", " ", handle_user },
-    { 2, 1, "PASS", " ", handle_pass },
-    { 3, 1, "ACCT", " ", handle_acct },
-    { 4, 1, "CWD",  " ", handle_cwd  },
-    { 5, 1, "CDUP", " ", handle_cdup },
-    { 6, 1, "SMNT", " ", handle_smnt },
-    { 7, 1, "QUIT", " ", handle_quit },
-    { 8, 1, "REIN", " ", handle_rein },
-    { 9, 1, "PORT", " ", handle_port },
-    {10, 1, "PASV", " ", handle_pasv },
-    {11, 1, "TYPE", " ", handle_type },
-    {12, 1, "STRU", " ", handle_stru },
-    {13, 1, "MODE", " ", handle_mode },
-    {14, 1, "RETR", " ", handle_retr },
-    {15, 1, "STOR", " ", handle_stor },
-    {16, 1, "STOU", " ", handle_stou },
-    {17, 1, "APPE", " ", handle_appe },
-    {18, 1, "ALLO", " ", handle_allo },
-    {19, 1, "REST", " ", handle_rest },
-    {20, 1, "RNFR", " ", handle_rnfr },
-    {21, 1, "RNTO", " ", handle_rnto },
-    {22, 1, "ABOR", " ", handle_abor }, 
-    {23, 1, "DELE", " ", handle_dele },
-    {24, 1, "RMD",  " ", handle_rmd  },
-    {25, 1, "MKD",  " ", handle_mkd  },
-    {26, 1, "PWD",  " ", handle_pwd  },
-    {27, 1, "LIST", " ", handle_list },
-    {28, 1, "NLST", " ", handle_nlst },
-    {29, 1, "SITE", " ", handle_site },
-    {30, 1, "SYST", " ", handle_syst },
-    {31, 1, "STAT", " ", handle_stat },
-    {32, 1, "HELP", " ", handle_help }, 
-    {33, 1, "NOOP", " ", handle_noop }, 
+    { 1, 1, THAKI_FTP_CMD_USER, THAKI_FTP_DSC_USER, handle_user },
+    { 2, 1, THAKI_FTP_CMD_PASS, THAKI_FTP_DSC_PASS, handle_pass },
+    { 3, 1, THAKI_FTP_CMD_ACCT, THAKI_FTP_DSC_ACCT, handle_acct },
+    { 4, 1, THAKI_FTP_CMD_CWD,  THAKI_FTP_DSC_CWD,  handle_cwd  },
+    { 5, 1, THAKI_FTP_CMD_CDUP, THAKI_FTP_DSC_CDUP, handle_cdup },
+    { 6, 1, THAKI_FTP_CMD_SMNT, THAKI_FTP_DSC_SMNT, handle_smnt },
+    { 7, 1, THAKI_FTP_CMD_QUIT, THAKI_FTP_DSC_QUIT, handle_quit },
+    { 8, 1, THAKI_FTP_CMD_REIN, THAKI_FTP_DSC_REIN, handle_rein },
+    { 9, 1, THAKI_FTP_CMD_PORT, THAKI_FTP_DSC_PORT, handle_port },
+    {10, 1, THAKI_FTP_CMD_PASV, THAKI_FTP_DSC_PASV, handle_pasv },
+    {11, 1, THAKI_FTP_CMD_TYPE, THAKI_FTP_DSC_TYPE, handle_type },
+    {12, 1, THAKI_FTP_CMD_STRU, THAKI_FTP_DSC_STRU, handle_stru },
+    {13, 1, THAKI_FTP_CMD_MODE, THAKI_FTP_DSC_MODE, handle_mode },
+    {14, 1, THAKI_FTP_CMD_RETR, THAKI_FTP_DSC_RETR, handle_retr },
+    {15, 1, THAKI_FTP_CMD_STOR, THAKI_FTP_DSC_STOR, handle_stor },
+    {16, 1, THAKI_FTP_CMD_STOU, THAKI_FTP_DSC_STOU, handle_stou },
+    {17, 1, THAKI_FTP_CMD_APPE, THAKI_FTP_DSC_APPE, handle_appe },
+    {18, 1, THAKI_FTP_CMD_ALLO, THAKI_FTP_DSC_ALLO, handle_allo },
+    {19, 1, THAKI_FTP_CMD_REST, THAKI_FTP_DSC_REST, handle_rest },
+    {20, 1, THAKI_FTP_CMD_RNFR, THAKI_FTP_DSC_RNFR, handle_rnfr },
+    {21, 1, THAKI_FTP_CMD_RNTO, THAKI_FTP_DSC_RNTO, handle_rnto },
+    {22, 1, THAKI_FTP_CMD_ABOR, THAKI_FTP_DSC_ABOR, handle_abor }, 
+    {23, 1, THAKI_FTP_CMD_DELE, THAKI_FTP_DSC_DELE, handle_dele },
+    {24, 1, THAKI_FTP_CMD_RMD,  THAKI_FTP_DSC_RMD,  handle_rmd  },
+    {25, 1, THAKI_FTP_CMD_MKD,  THAKI_FTP_DSC_MKD,  handle_mkd  },
+    {26, 1, THAKI_FTP_CMD_PWD,  THAKI_FTP_DSC_PWD,  handle_pwd  },
+    {27, 1, THAKI_FTP_CMD_LIST, THAKI_FTP_DSC_LIST, handle_list },
+    {28, 1, THAKI_FTP_CMD_NLST, THAKI_FTP_DSC_NLST, handle_nlst },
+    {29, 1, THAKI_FTP_CMD_SITE, THAKI_FTP_DSC_SITE, handle_site },
+    {30, 1, THAKI_FTP_CMD_SYST, THAKI_FTP_DSC_SYST, handle_syst },
+    {31, 1, THAKI_FTP_CMD_STAT, THAKI_FTP_DSC_STAT, handle_stat },
+    {32, 1, THAKI_FTP_CMD_HELP, THAKI_FTP_DSC_HELP, handle_help }, 
+    {33, 1, THAKI_FTP_CMD_NOOP, THAKI_FTP_DSC_NOOP, handle_noop }, 
 };
 
 #define NUM_FTP_CMDS (sizeof(ftp_cmds)/sizeof(thakifd_cmd_t));
 
+static thakifd_resp_t ftp_replies[] = {
+
+};
+
 /* DJB2 algo to hash strings */
 unsigned long
-hash(char *str)
+hash (char *str)
 {
     unsigned long hash = 5381;
     int c;
@@ -207,7 +215,7 @@ hash(char *str)
 }
 
 thakifd_status_t
-thakifd_start(thakifd_server_t *srvr)
+thakifd_start (thakifd_server_t *srvr)
 {
 	int lfd = 0;
 	struct sockaddr_in saddr = { 0 };
@@ -266,7 +274,7 @@ thakifd_start(thakifd_server_t *srvr)
 }
 
 static void
-thakifd_addto_epoll(thakifd_client_t *client)
+thakifd_addto_epoll (thakifd_client_t *client)
 {
 	struct epoll_event event;
 
@@ -287,7 +295,7 @@ thakifd_addto_epoll(thakifd_client_t *client)
 }
 
 thakifd_status_t
-thakifd_accept(thakifd_server_t *server)
+thakifd_accept (thakifd_server_t *server)
 {
 	int cfd, cid;
 	socklen_t clen;
@@ -328,20 +336,20 @@ thakifd_accept(thakifd_server_t *server)
 }
 
 static char *
-get_error_msg(void)
+get_error_msg (void)
 {
 	return "ERROR\n";
 }
 
 thakifd_status_t
-thakifd_send_msg(thakifd_client_t *client, char *msg)
+thakifd_send_msg (thakifd_client_t *client, char *msg)
 {
 	write(client->fd, msg, strlen(msg));
 	return SUCCESS;
 }
 
 thakifd_status_t
-thakifd_bcast_event(thakifd_user_t *usr)
+thakifd_bcast_event (thakifd_user_t *usr)
 {
 	userq_t *u;
 	char wbuf[BUFSIZE];
@@ -354,7 +362,7 @@ thakifd_bcast_event(thakifd_user_t *usr)
 }
 
 thakifd_status_t
-thakifd_join_room(thakifd_client_t *client, char *user, char *room)
+thakifd_join_room (thakifd_client_t *client, char *user, char *room)
 {
 	thakifd_user_t *u;
 	userq_t      *uinr;
@@ -391,7 +399,7 @@ thakifd_join_room(thakifd_client_t *client, char *user, char *room)
 //#define BUFSTART (client->rbuf + client->rptr)
 
 thakifd_status_t
-handle_join(thakifd_client_t *client)
+handle_join (thakifd_client_t *client)
 {
 	if (RBUF_IS_READ_OK(client, 5) &&  strncasecmp(RBUF_READ_START(client), "JOIN ", 5) == 0) {
 		char username[STRSIZE];
@@ -441,7 +449,7 @@ handle_join(thakifd_client_t *client)
 }
 
 thakifd_status_t
-handle_leave(thakifd_client_t *client)
+handle_leave (thakifd_client_t *client)
 {
 	if (RBUF_IS_READ_OK(client, 5) &&  strncasecmp(RBUF_READ_START(client), "LEAVE", 5) == 0) {
 		fprintf(stderr, "Found LEAVE Command\n");
@@ -452,14 +460,14 @@ handle_leave(thakifd_client_t *client)
 }
 
 thakifd_status_t
-handle_error(thakifd_client_t *client)
+handle_error (thakifd_client_t *client)
 {
 	/* Not implemented */
 	return SUCCESS;
 }
 
 thakifd_status_t
-handle_message(thakifd_client_t *client)
+handle_message (thakifd_client_t *client)
 {
 	int  ri = 0;
 	char rbuf[BUFSIZE] = {0};
@@ -490,6 +498,19 @@ handle_message(thakifd_client_t *client)
 		client->rptr = RBUF_INCR_RPTR(client, 1);
 	sprintf(wbuf, "%s : %s\n", client->user->name, rbuf);
 	return SUCCESS;
+}
+
+static inline void
+get_list (char *dirpath)
+{
+	DIR *d;
+	struct dirent *de;
+
+	d = opendir(dirpath);
+	while ((de = readdir(d)) != NULL) {
+		printf("%s\n", de->d_name);
+	}
+	return;
 }
 
 static void
@@ -524,6 +545,9 @@ static void
 handle_cdup (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "CDUP");
+	if (strncmp(client->rootpath, client->cwd, strlen(client->rootpath)) == 0) {
+		printf("Already on root, failed to go up from there\n");
+	}
 	return;
 }
 
@@ -573,6 +597,7 @@ static void
 handle_stru (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "STRU");
+	printf("Only file structure is supported\n");
 	return;
 }
 
@@ -643,6 +668,8 @@ static void
 handle_abor (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "ABOR");
+	printf("Aborting connection to client id %d\n", client->fd);
+
 	return;
 } 
 
@@ -671,6 +698,7 @@ static void
 handle_pwd  (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "PWD");
+	printf("PWD is %s\n", client->cwd);
 	return;
 }
 
@@ -678,6 +706,9 @@ static void
 handle_list (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "LIST");
+	printf("START LIST\n");
+	get_list(client->cwd);
+	printf("END LIST\n\n");
 	return;
 }
 
@@ -685,6 +716,9 @@ static void
 handle_nlst (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "NLST");
+	printf("START NLST\n");
+	get_list(client->cwd);
+	printf("END NLST\n\n");
 	return;
 }
  
@@ -695,10 +729,19 @@ handle_site (thakifd_client_t *client)
 	return;
 }
 
+/* find out the type of operating system at the serve */
 static void
 handle_syst (thakifd_client_t *client)
 {
+	struct utsname *un;
+
 	printf("Handling command %s\n", "SYST");
+	un = malloc(sizeof(struct utsname));
+	memset(un, 0, sizeof(struct utsname));
+	uname(un);
+	printf("OS      : %s\n", un->sysname);
+	printf("Version : %s\n", un->version);
+	free(un);
 	return;
 }
 
@@ -720,11 +763,12 @@ static void
 handle_noop (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "NOOP");
+	printf("Doing-DONE NOOP for client id=%d\n", client->fd);
 	return;
 }
 
 thakifd_status_t
-handle_commands(thakifd_client_t *client)
+handle_commands (thakifd_client_t *client)
 {
 	while (! RBUF_IS_EMPTY(client)) {
 		/* Skip over any control characters */
@@ -749,18 +793,13 @@ handle_commands(thakifd_client_t *client)
 }
 
 thakifd_status_t
-thakifd_close(thakifd_client_t *client)
+thakifd_close (thakifd_client_t *client)
 {
 	//userq_t *u;
 	int uid, rid;
 
 	client->state = THAKIFD_CLOSING;
 
-	uid = hash(client->user->name) % MAX_USERS;
-	//u = client->server->userslist[uid];
-	//free(u);
-	client->server->userslist[uid] = NULL;
-	//free(client->user);
 	if (close(client->fd) == -1) {
 		perror("close");
 		fprintf(stderr, "failed to close connection\n");
@@ -772,7 +811,7 @@ thakifd_close(thakifd_client_t *client)
 }
 
 void
-thakifd_run(thakifd_server_t *server)
+thakifd_run (thakifd_server_t *server)
 {
 	int                rlen = 0;
 	int 			   ecount;
@@ -846,7 +885,7 @@ usage (char *fname)
 }
 
 static void
-daemonize(void)
+daemonize (void)
 {
 	pid_t pid;
 
@@ -870,7 +909,7 @@ daemonize(void)
 }
 
 thakifd_status_t
-handle_args(int argc, char *argv[], thakifd_server_t *server)
+handle_args (int argc, char *argv[], thakifd_server_t *server)
 {
 	optind = 0;
 	while (1) {
@@ -958,7 +997,7 @@ handle_args(int argc, char *argv[], thakifd_server_t *server)
 }
 
 void
-thakifd_closeup(void)
+thakifd_closeup (void)
 {
 	#if 0
 	if (userslist != NULL) /* any more cleanup */
