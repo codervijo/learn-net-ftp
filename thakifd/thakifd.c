@@ -58,21 +58,19 @@ struct userq {
     TAILQ_ENTRY(userq)      tailq;
 };
 
-typedef struct userq userq_t;
-typedef TAILQ_HEAD(uhead, userq) uinr_head_t;
-
 typedef struct thakifd_cmd_s {
-	int              id;
-	int              nargs;
-	char             name[STRSIZE];
-	char             *desc;
-	void             (*handler)(struct thakifd_client_s *client);
+	int                     id;
+	int                     nargs;
+	char                    *name;
+	char                    *desc;
+	void                    (*handler)(struct thakifd_client_s *client);
 } thakifd_cmd_t;
 
 typedef struct thakifd_resp_s {
-	int              id;
-	char             name[STRSIZE];
-	char             *desc;
+	int                     id;
+	int                     code;
+	char                    *name;
+	char                    *desc;
 } thakifd_resp_t;
 
 typedef enum {
@@ -93,6 +91,9 @@ typedef struct thakifd_client_s {
 	thakifd_user_t   *user;
 	thakifd_server_t *server;
 } thakifd_client_t;
+
+typedef struct userq userq_t;
+typedef TAILQ_HEAD(uhead, userq) uinr_head_t;
 
 /* Macros to deal with read circular buffer */
 #define RBUF_SIZE(c)           (sizeof(c)->rbuf)
@@ -198,7 +199,45 @@ static thakifd_cmd_t ftp_cmds[] = {
 #define NUM_FTP_CMDS (sizeof(ftp_cmds)/sizeof(thakifd_cmd_t));
 
 static thakifd_resp_t ftp_replies[] = {
-
+	{ 1, 110, "Restart marker reply." , ""  },
+    { 2, 120, "Service ready in nnn minutes.", ""  },
+    { 3, 125, "Data connection already open; transfer starting.", "" },
+    { 4, 150, "File status okay; about to open data connection.", "" },
+    { 5, 200, "Command okay.", "" },
+    { 6, 202, "Command not implemented, superfluous at this site.", "" },
+    { 7, 211, "System status, or system help reply.", ""},
+    { 8, 212, "Directory status.", "" },
+    { 9, 213, "File status.", "" },
+    {10, 214, "Help message.", "" },
+    {11, 215, "NAME system type.", "" },
+    {12, 220, "Service ready for new user.", "" },
+    {13, 221, "Service closing control connection.", "" },
+    {14, 225, "Data connection open; no transfer in progress.", "" },
+    {15, 226, "Closing data connection.", "" },
+    {16, 227, "Entering Passive Mode (h1,h2,h3,h4,p1,p2).", "" },
+    {17, 230, "User logged in, proceed.", "" },
+    {18, 250, "Requested file action okay, completed.", "" },
+    {19, 257, "PATHNAME created.", "" },
+    {20, 331, "User name okay, need password.", "" },
+    {21, 332, "Need account for login.", "" },
+    {22, 350, "Requested file action pending further information.", "" },
+    {23, 421, "Service not available, closing control connection.", "" },
+    {24, 425, "Can't open data connection.", "" },
+    {25, 426, "Connection closed; transfer aborted.", "" },
+    {26, 450, "Requested file action not taken.", "" },
+    {27, 451, "Requested action aborted: local error in processing.", "" },
+    {28, 452, "Requested action not taken.", "" },
+    {29, 500, "Syntax error, command unrecognized.", "" },
+    {30, 501, "Syntax error in parameters or arguments.", "" },
+    {31, 502, "Command not implemented.", "" },
+    {32, 503, "Bad sequence of commands.", "" },
+    {33, 504, "Command not implemented for that parameter.", "" },
+    {34, 530, "Not logged in.", "" },
+    {35, 532, "Need account for storing files.", "" },
+    {36, 550, "Requested action not taken.", "" },
+    {37, 551, "Requested action aborted: page type unknown.", "" },
+    {38, 552, "Requested file action aborted.", "" },
+    {39, 553, "Requested action not taken.", "" },
 };
 
 /* DJB2 algo to hash strings */
@@ -362,141 +401,9 @@ thakifd_bcast_event (thakifd_user_t *usr)
 }
 
 thakifd_status_t
-thakifd_join_room (thakifd_client_t *client, char *user, char *room)
-{
-	thakifd_user_t *u;
-	userq_t      *uinr;
-	int uid, rid;
-
-	uid = hash(user) % MAX_USERS;
-
-	u = client->server->userslist[uid];
-	fprintf(stderr, "Uid:%d,u:%p\n", uid, u);
-	if (u == NULL) {
-		u = (thakifd_user_t *)malloc(sizeof(thakifd_user_t));
-		if (u == NULL) {
-			fprintf(stderr, "Failed to allocate memory for user\n");
-			return FAILURE;
-		}
-		memset(u, 0, sizeof(thakifd_user_t));
-	} else {
-		fprintf(stderr, "Found user %s\n", u->name);
-	} 
-	/* TODO else handle hash chains */
-	memcpy(u->name, user, strlen(user));
-	u->client = client;
-	client->user = u;
-	client->state = THAKIFD_JOINED;
-	uinr = (userq_t *)malloc(sizeof(userq_t));
-	memset(uinr, 0, sizeof(userq_t));
-	uinr->usr = u;
-
-	client->server->userslist[uid] = u;
-	thakifd_bcast_event(u);
-	return SUCCESS;
-}
-
-//#define BUFSTART (client->rbuf + client->rptr)
-
-thakifd_status_t
-handle_join (thakifd_client_t *client)
-{
-	if (RBUF_IS_READ_OK(client, 5) &&  strncasecmp(RBUF_READ_START(client), "JOIN ", 5) == 0) {
-		char username[STRSIZE];
-		int  ri = 0, ui = -1;
-
-		fprintf(stderr, "Found JOIN Command\n");
-		client->rptr = RBUF_INCR_RPTR(client, 5);
-		if (RBUF_IS_EMPTY(client)) {
-			fprintf(stderr, "Bufsize for client read buffer not enough\n");
-			return FAILURE;
-		}
-		memset(username, 0, sizeof(username));
-		for (int i = client->rptr; i < client->wptr && client->rbuf[i] != '\r'; i++) {
-			/* 2 valid states => read room name, user name */
-			if (ui == -1 || client->rbuf[i] == ' ') {
-				if (client->rbuf[i] == ' ') {
-					ui++;
-					continue;
-				}
-			} else
-				username[ui++] = client->rbuf[i];
-			client->rptr = RBUF_INCR_RPTR(client, 1);
-		}
-		username[ui] = '\0';
-		if (strlen(username) > NAMESIZE) {
-			fprintf(stderr, "Name sizes are too large\n");
-			thakifd_send_msg(client, get_error_msg());
-			return FAILURE;
-		}
- 		client->rptr = RBUF_INCR_RPTR(client, 1);
-		/* Skip over any empty input lines */
-		while (client->rbuf[client->rptr] == '\n' || client->rbuf[client->rptr] == '\r')
-			client->rptr = RBUF_INCR_RPTR(client, 1);
-		if (RBUF_IS_EMPTY(client)) {
-			fprintf(stderr, "Read caught up\n");
-		}
-		return SUCCESS;
-	}
-
-	fprintf(stderr, "JOIN command expected, was not found\n");
-	thakifd_send_msg(client, get_error_msg());
-	/* Skip over any empty input lines */
-	while (client->rbuf[client->rptr] == '\n' || client->rbuf[client->rptr] == '\r')
-		client->rptr = RBUF_INCR_RPTR(client, 1);
-
-	return FAILURE;
-}
-
-thakifd_status_t
-handle_leave (thakifd_client_t *client)
-{
-	if (RBUF_IS_READ_OK(client, 5) &&  strncasecmp(RBUF_READ_START(client), "LEAVE", 5) == 0) {
-		fprintf(stderr, "Found LEAVE Command\n");
-		return SUCCESS;
-	}
-	/* TODO */
-	return SUCCESS;
-}
-
-thakifd_status_t
 handle_error (thakifd_client_t *client)
 {
 	/* Not implemented */
-	return SUCCESS;
-}
-
-thakifd_status_t
-handle_message (thakifd_client_t *client)
-{
-	int  ri = 0;
-	char rbuf[BUFSIZE] = {0};
-	char wbuf[BUFSIZE] = {0};
-	userq_t *u;
-
-	if (client->state != THAKIFD_JOINED) {
-		fprintf(stderr, "Got message <%d> while unjoined\n", client->rptr);
-		while (! RBUF_IS_EMPTY(client)) {
-			client->rptr = RBUF_INCR_RPTR(client, 1);
-		}
-		//client->rptr = RBUF_INCR_RPTR(client, 1);
-		return thakifd_send_msg(client, get_error_msg());
-	}
-	/* Send message to all users in the room */
-	while (! RBUF_IS_EMPTY(client)) {
-		rbuf[ri++]   = *RBUF_READ_START(client);
-		client->rptr = RBUF_INCR_RPTR(client, 1);
-	}
-	/*if (i >= BUFSIZE-NAMESIZE) {
-		fprintf(stderr, "Read message > %d\n", BUFSIZE-NAMESIZE);
-		return thakifd_send_msg(client, get_error_msg());
-	}*/
-
-	//client->rptr = RBUF_INCR_RPTR(client, 1);
-	/* Skip over any empty input lines */
-	while (! RBUF_IS_EMPTY(client) && (client->rbuf[client->rptr] == '\n' || client->rbuf[client->rptr] == '\r'))
-		client->rptr = RBUF_INCR_RPTR(client, 1);
-	sprintf(wbuf, "%s : %s\n", client->user->name, rbuf);
 	return SUCCESS;
 }
 
