@@ -198,6 +198,46 @@ static thakifd_cmd_t ftp_cmds[] = {
 
 #define NUM_FTP_CMDS (sizeof(ftp_cmds)/sizeof(thakifd_cmd_t));
 
+#define THAKI_FTP_REPLY_INDEX_110   (0)
+#define THAKI_FTP_REPLY_INDEX_120   (1)
+#define THAKI_FTP_REPLY_INDEX_125   (2)
+#define THAKI_FTP_REPLY_INDEX_150   (3)
+#define THAKI_FTP_REPLY_INDEX_200   (4)
+#define THAKI_FTP_REPLY_INDEX_202   (5)
+#define THAKI_FTP_REPLY_INDEX_211   (6)
+#define THAKI_FTP_REPLY_INDEX_212   (7)
+#define THAKI_FTP_REPLY_INDEX_213   (8)
+#define THAKI_FTP_REPLY_INDEX_214   (9)
+#define THAKI_FTP_REPLY_INDEX_215   (10)
+#define THAKI_FTP_REPLY_INDEX_220   (11)
+#define THAKI_FTP_REPLY_INDEX_221   (12)
+#define THAKI_FTP_REPLY_INDEX_225   (13)
+#define THAKI_FTP_REPLY_INDEX_226   (14)
+#define THAKI_FTP_REPLY_INDEX_227   (15)
+#define THAKI_FTP_REPLY_INDEX_230   (16)
+#define THAKI_FTP_REPLY_INDEX_250   (17)
+#define THAKI_FTP_REPLY_INDEX_257   (18)
+#define THAKI_FTP_REPLY_INDEX_331   (19)
+#define THAKI_FTP_REPLY_INDEX_332   (20)
+#define THAKI_FTP_REPLY_INDEX_350   (21)
+#define THAKI_FTP_REPLY_INDEX_421   (22)
+#define THAKI_FTP_REPLY_INDEX_425   (23)
+#define THAKI_FTP_REPLY_INDEX_426   (24)
+#define THAKI_FTP_REPLY_INDEX_450   (25)
+#define THAKI_FTP_REPLY_INDEX_451   (26)
+#define THAKI_FTP_REPLY_INDEX_452   (27)
+#define THAKI_FTP_REPLY_INDEX_500   (28)
+#define THAKI_FTP_REPLY_INDEX_501   (29)
+#define THAKI_FTP_REPLY_INDEX_502   (30)
+#define THAKI_FTP_REPLY_INDEX_503   (31)
+#define THAKI_FTP_REPLY_INDEX_504   (32)
+#define THAKI_FTP_REPLY_INDEX_530   (33)
+#define THAKI_FTP_REPLY_INDEX_532   (34)
+#define THAKI_FTP_REPLY_INDEX_550   (35)
+#define THAKI_FTP_REPLY_INDEX_551   (36)
+#define THAKI_FTP_REPLY_INDEX_552   (37)
+#define THAKI_FTP_REPLY_INDEX_553   (38)
+
 static thakifd_resp_t ftp_replies[] = {
 	{ 1, 110, "Restart marker reply." , ""  },
     { 2, 120, "Service ready in nnn minutes.", ""  },
@@ -388,16 +428,18 @@ thakifd_send_msg (thakifd_client_t *client, char *msg)
 }
 
 thakifd_status_t
-thakifd_bcast_event (thakifd_user_t *usr)
+thakifd_send_reply (thakifd_client_t *client, int index, char *msg)
 {
-	userq_t *u;
+	thakifd_resp_t *reply;
+	int l = 0;
 	char wbuf[BUFSIZE];
 
 	memset(wbuf, 0, sizeof(wbuf));
-	sprintf(wbuf, "%s has joined\n", usr->name);
-
-
-	return SUCCESS;
+	reply = &ftp_replies[index];
+	l = sprintf(wbuf, "%3d %s", reply->code, reply->name);
+	if (msg != NULL)
+		sprintf(wbuf+l, "\n%s\n", msg);
+	thakifd_send_msg(client, wbuf);
 }
 
 thakifd_status_t
@@ -576,7 +618,8 @@ handle_abor (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "ABOR");
 	printf("Aborting connection to client id %d\n", client->fd);
-
+    thakifd_send_reply(client, THAKI_FTP_REPLY_INDEX_226, NULL);
+    close(client->fd);
 	return;
 } 
 
@@ -606,6 +649,7 @@ handle_pwd  (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "PWD");
 	printf("PWD is %s\n", client->cwd);
+	thakifd_send_reply(client, THAKI_FTP_REPLY_INDEX_200, client->cwd);
 	return;
 }
 
@@ -788,6 +832,7 @@ usage (char *fname)
 	fprintf(stderr, "	--help | -h : Print help for %s\n", fname);
 	fprintf(stderr, "\n\nOptional argument : Port number for server\n");
 	fprintf(stderr, "Default port if no port is in CLI options : %d\n", THAKIFD_PORT);
+
 	return SUCCESS;
 }
 
@@ -881,7 +926,6 @@ handle_args (int argc, char *argv[], thakifd_server_t *server)
             fprintf(stderr, "No digits were found\n");
             exit(EXIT_FAILURE);
         }
-
 
         printf("strtol() returned %ld\n", pport);
 
