@@ -47,3 +47,12 @@ TODO
   ☐ Add better handling of <SP>
   ☐ Add better handling of <CRLF>
   ✔ Fix sigfault at close of connection from client @done (21-10-01 22:14)
+
+
+Thaki FTP client
+  ✔ Add framework for thaki client CLI commands @done (21-10-04 15:59)
+  ✔ Add quit/exit CLI @done (21-10-04 15:59)
+  ☐ Add connect to server
+  ☐ Add list command
+  ☐ Add pwd command
+  ☐ Add support PORT handling
