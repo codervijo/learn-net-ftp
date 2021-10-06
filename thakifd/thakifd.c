@@ -432,7 +432,7 @@ thakifd_send_reply (thakifd_client_t *client, int index, char *msg)
 {
 	thakifd_resp_t *reply;
 	int l = 0;
-	char wbuf[BUFSIZE];
+	char wbuf[2*BUFSIZE];
 
 	memset(wbuf, 0, sizeof(wbuf));
 	reply = &ftp_replies[index];
@@ -707,6 +707,7 @@ static void
 handle_help (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "HELP");
+	thakifd_send_reply(client, THAKI_FTP_REPLY_INDEX_214, "Reply from Server\n");
 	return;
 } 
 

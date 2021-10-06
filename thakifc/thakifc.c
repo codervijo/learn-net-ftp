@@ -37,7 +37,7 @@ typedef enum {
 } thakifc_status_t;
 
 typedef struct {
-	int                     listen_fd;
+	int                     fd;
 	int                     port;
 	int                     tmp;
 	int 				    epoll_fd;
@@ -278,9 +278,9 @@ hash (char *str)
 }
 
 thakifc_status_t
-thakifc_connect (thakifc_server_t *srvr)
+thakifc_connect (thakifc_server_t *srvr, int sport)
 {
-	int lfd = 0;
+	int                s = 0, fd = 0;
 	struct sockaddr_in saddr = { 0 };
 	struct epoll_event event;
 
@@ -288,16 +288,10 @@ thakifc_connect (thakifc_server_t *srvr)
 	saddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	saddr.sin_port = htons(srvr->port);
 
-	lfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (lfd == -1) {
+	fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (fd == -1) {
 		perror("socket");
 		fprintf(stderr, "Socket creation failed\n");
-		return FAILURE;
-	}
-
-	if (listen(lfd, BACKLOG) == -1) {
-		perror("listen");
-		fprintf(stderr, "Listen failed\n");
 		return FAILURE;
 	}
 
@@ -306,7 +300,16 @@ thakifc_connect (thakifc_server_t *srvr)
 		return FAILURE;
 	}
 
-	srvr->listen_fd = lfd;
+	saddr.sin_family = AF_INET;
+	saddr.sin_port   = htons(sport);
+	srvr->fd  = fd;
+	printf("Set socket FD:%d\n", srvr->fd);
+
+	s = inet_pton(AF_INET, "127.0.0.1", &(saddr.sin_addr));
+	if (connect(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
+		fprintf(stderr, "Failed to connect to server\n");
+		return FAILURE;
+	}
 	srvr->epoll_fd  = epoll_create1(0);
 	if (srvr->epoll_fd == -1) {
 		fprintf(stderr, "Epoll create failed\n");
@@ -314,14 +317,14 @@ thakifc_connect (thakifc_server_t *srvr)
 	} else {
 		memset(&event, 0, sizeof(event));
 		event.events = EPOLLIN;
-		event.data.fd = srvr->listen_fd;
+		event.data.fd = srvr->fd;
 
-		int status = fcntl(srvr->listen_fd, F_SETFL, fcntl(srvr->listen_fd, F_GETFL, 0) | O_NONBLOCK);	
+		int status = fcntl(srvr->fd, F_SETFL, fcntl(srvr->fd, F_GETFL, 0) | O_NONBLOCK);	
 		if (status == -1){
 	  		perror("calling fcntl");
 	  		// handle the error.  Doesn't usually fail.
 		}
-		if(epoll_ctl(srvr->epoll_fd, EPOLL_CTL_ADD, srvr->listen_fd, &event))
+		if(epoll_ctl(srvr->epoll_fd, EPOLL_CTL_ADD, srvr->fd, &event))
 		{
 			fprintf(stderr, "Failed to add listen_fd file descriptor to epoll\n");
 			//server->epoll_fd = -1;
@@ -353,47 +356,6 @@ thakifc_addto_epoll (thakifc_client_t *client)
 	}
 }
 
-thakifc_status_t
-thakifc_accept (thakifc_server_t *server)
-{
-	int cfd, cid;
-	socklen_t clen;
-	struct sockaddr_in caddr;
-
-	clen = sizeof(caddr);
-	memset(&caddr, 0, clen);
-	if ((cfd = accept(server->listen_fd, (struct sockaddr*)&caddr, &clen)) == -1) {
-		perror("accept");
-		fprintf(stderr, "Accept failed\n");
-		return FAILURE;
-	}
-
-	printf("Client connected!\n");
-	server->tmp = cfd;
-	cid = cfd % MAX_CLIENTS;
-	fprintf(stderr, "CID for new client:%d from FD %d\n", cid, cfd);
-	server->clients[cid] = (thakifc_client_t *)malloc(sizeof(thakifc_client_t));
-	if (server->clients[cid] == NULL) {
-		fprintf(stderr, "Failed to allocate memory for client\n");
-		return FAILURE;
-	}
-	memset(server->clients[cid], 0, sizeof(thakifc_client_t));
-	server->clients[cid]->fd = cfd;
-    //memcpy(server->clients[cid]->rootpath, thakifc_FTP_ROOT, sizeof(thakifc_FTP_ROOT));
-    //memcpy(server->clients[cid]->cwd,      thakifc_FTP_ROOT, sizeof(thakifc_FTP_ROOT));
-	int status = fcntl(cfd, F_SETFL, fcntl(cfd, F_GETFL, 0) | O_NONBLOCK);	
-	if (status == -1){
-  		perror("calling fcntl");
-  		// handle the error.  Doesn't usually fail.
-	}
-	server->clients[cid]->state  = thakifc_CONNECTED;
-	server->clients[cid]->server = server; /* not circular, i declare */
-
-	thakifc_addto_epoll(server->clients[cid]);
-
-	return SUCCESS;
-}
-
 static char *
 get_error_msg (void)
 {
@@ -401,25 +363,10 @@ get_error_msg (void)
 }
 
 thakifc_status_t
-thakifc_send_msg (thakifc_client_t *client, char *msg)
+thakifc_send_msg (thakifc_server_t *server, char *msg)
 {
-	write(client->fd, msg, strlen(msg));
+	write(server->fd, msg, strlen(msg));
 	return SUCCESS;
-}
-
-thakifc_status_t
-thakifc_send_reply (thakifc_client_t *client, int index, char *msg)
-{
-	thakifc_resp_t *reply;
-	int l = 0;
-	char wbuf[BUFSIZE];
-
-	memset(wbuf, 0, sizeof(wbuf));
-	reply = &ftp_replies[index];
-	l = sprintf(wbuf, "%3d %s", reply->code, reply->name);
-	if (msg != NULL)
-		sprintf(wbuf+l, "\n%s\n", msg);
-	thakifc_send_msg(client, wbuf);
 }
 
 thakifc_status_t
@@ -499,12 +446,6 @@ thakifc_run (thakifc_server_t *server)
     {
     	thakifc_client_t *client;
 		fprintf(stderr, "Reading file descriptor '%d' -- ", events[i].data.fd);
-		if (events[i].data.fd == server->listen_fd) {
-			if (thakifc_accept(server) == FAILURE) {
-				fprintf(stderr, "Faoiled to accept connection from client \n");
-			}
-			continue;
-		}
 		client = events[i].data.ptr;
 		if (client == NULL) {
 			fprintf(stderr, "Got event on null data.ptr\n");
@@ -686,7 +627,6 @@ thakifc_status_t
 handle_help (void)
 {
 	printf("Help from Thaki FTP client\n");
-
 	return 0;
 }
 
@@ -721,6 +661,7 @@ main(int argc, char *argv[])
 	while (1) {
 		static int li = 0;
 		char line[BUFSIZE];
+		char buff[BUFSIZE];
 
 		if (redo != 0) {
 			fprintf(stdout, "%s ", PS1);
@@ -737,19 +678,26 @@ main(int argc, char *argv[])
 			line[li] = getchar();
 			if (isspace(line[li])) {
 				for (int i = 0; i < NUM_CLI_CMDS; i++) {
+					int sport;
 					if (li > 1 && strncmp(line, cli_cmds[i].name, li) == 0) {
 						printf("Got CLI command [%s]", line);
 						switch (cli_cmds[i].id) {
 						case 1:
 							handle_help();
+							thakifc_send_msg(&thakifc, "HELP dfsgf sfgsdfg sfdgsdfgs sdfgsdfg \r\n\n");
+							memset(buff, 0, sizeof(buff));
+							read(thakifc.fd, &buff, sizeof(buff));
+							printf("From server <%s>\n", buff);
 							break;
 
 						case 2:
 						case 3:
+							thakifc_send_msg(&thakifc, "ABOR");
 							exit(0);
 
 						case 8:
-							if (thakifc_connect(&thakifc) == FAILURE) {
+							sport = 1234;//atoi(line[li+2]);
+							if (thakifc_connect(&thakifc, sport) == FAILURE) {
 								fprintf(stderr, "Failed to start thakifc server on port %d\n", thakifc.port);
 								exit(-2);
 							}
