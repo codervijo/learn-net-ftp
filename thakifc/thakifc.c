@@ -168,14 +168,15 @@ static thakifc_cmd_t ftp_cmds[] = {
 #define NUM_FTP_CMDS (sizeof(ftp_cmds)/sizeof(ftp_cmds[0]));
 
 static thakifc_cli_cmd_t cli_cmds[] = {
-	{ 1, 1, "help",    "Print help message"   },
-	{ 2, 0, "quit",    "Quit from shell"      },
-	{ 3, 0, "exit",    "Quit from shell"      },
-	{ 4, 0, "pwd",     "Print working dir"    },
-	{ 5, 0, "ls",      "List directory"       },
-	{ 6, 0, "list",    "List directory"       },
-	{ 7, 0, "dir",     "List directory"       },
-	{ 8, 0, "connect", "Connect to server"    },
+	{ 1, 1, "help",       "Print help message"   },
+	{ 2, 0, "quit",       "Quit from shell"      },
+	{ 3, 0, "exit",       "Quit from shell"      },
+	{ 4, 0, "pwd",        "Print working dir"    },
+	{ 5, 0, "ls",         "List directory"       },
+	{ 6, 0, "list",       "List directory"       },
+	{ 7, 0, "dir",        "List directory"       },
+	{ 8, 0, "connect",    "Connect to server"    },
+	{ 9, 0, "disconnect", "Disconnect from server" }
 };
 
 #define NUM_CLI_CMDS (sizeof(cli_cmds)/sizeof(cli_cmds[0]))
@@ -627,6 +628,11 @@ thakifc_status_t
 handle_help (void)
 {
 	printf("Help from Thaki FTP client\n");
+	for (int i = 0; i < NUM_CLI_CMDS; i++) {
+		printf("\t%s\t:\t%s\n", cli_cmds[i].name, cli_cmds[i].desc);
+	}
+
+	/* TODO if connected print server help */
 	return 0;
 }
 
@@ -684,10 +690,13 @@ main(int argc, char *argv[])
 						switch (cli_cmds[i].id) {
 						case 1:
 							handle_help();
+							/* TODO : if connected */
+							#if 0
 							thakifc_send_msg(&thakifc, "HELP dfsgf sfgsdfg sfdgsdfgs sdfgsdfg \r\n\n");
 							memset(buff, 0, sizeof(buff));
 							read(thakifc.fd, &buff, sizeof(buff));
 							printf("From server <%s>\n", buff);
+							#endif
 							break;
 
 						case 2:
