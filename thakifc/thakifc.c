@@ -14,7 +14,6 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <sys/queue.h>
@@ -362,19 +361,6 @@ handle_error (thakifc_client_t *client)
 	return SUCCESS;
 }
 
-static inline void
-get_list (char *dirpath)
-{
-	DIR *d;
-	struct dirent *de;
-
-	d = opendir(dirpath);
-	while ((de = readdir(d)) != NULL) {
-		printf("%s\n", de->d_name);
-	}
-	return;
-}
-
 thakifc_status_t
 handle_commands (thakifc_client_t *client)
 {
@@ -670,7 +656,7 @@ main(int argc, char *argv[])
 						switch (cli_cmds[i].id) {
 						case 1:
 							handle_help();
-							/*  if connected */
+							/*  if connected show server side help */
 							if (thakifc.state == THAKIFC_CONNECTED) {
 								thakifc_send_msg(&thakifc, "HELP dfsgf sfgsdfg sfdgsdfgs sdfgsdfg \r\n\n");
 								memset(buff, 0, sizeof(buff));
