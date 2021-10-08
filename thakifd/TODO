@@ -52,7 +52,11 @@ TODO
 Thaki FTP client
   ✔ Add framework for thaki client CLI commands @done (21-10-04 15:59)
   ✔ Add quit/exit CLI @done (21-10-04 15:59)
-  ☐ Add connect to server
+  ✔ Add connect to server @done (21-10-06 14:02)
+  ✔ Add help command @done (21-10-07 21:46)
   ☐ Add list command
   ☐ Add pwd command
   ☐ Add support PORT handling
+
+
+  ☐ Add state per client status

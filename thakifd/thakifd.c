@@ -716,6 +716,7 @@ handle_noop (thakifd_client_t *client)
 {
 	printf("Handling command %s\n", "NOOP");
 	printf("Doing-DONE NOOP for client id=%d\n", client->fd);
+	thakifd_send_reply(client, THAKI_FTP_REPLY_INDEX_200, "Reply from Server\n");
 	return;
 }
 
