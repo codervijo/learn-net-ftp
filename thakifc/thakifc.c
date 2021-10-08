@@ -36,25 +36,20 @@ typedef enum {
 	SUCCESS
 } thakifc_status_t;
 
+typedef enum {
+	THAKIFC_CONNECTED = 1,
+	THAKIFC_LOGGEDIN,
+	THAKIFC_CLOSING
+} thakifc_client_state_t;
+
 typedef struct {
 	int                     fd;
 	int                     port;
 	int                     tmp;
 	int 				    epoll_fd;
-	struct thakifc_user_s   **userslist;
+	int                     state;
 	struct thakifc_client_s **clients;
 } thakifc_server_t;
-
-typedef struct thakifc_user_s {
-	char                    name[STRSIZE];
-	int                     id;
-	struct thakifc_client_s *client;
-} thakifc_user_t;
-
-struct userq {
-    thakifc_user_t          *usr;
-    TAILQ_ENTRY(userq)      tailq;
-};
 
 typedef struct thakifc_cmd_s {
 	int                     id;
@@ -71,32 +66,31 @@ typedef struct thakifc_resp_s {
 	char                    *desc;
 } thakifc_resp_t;
 
-typedef enum {
-	thakifc_CONNECTED = 1,
-	thakifc_JOINED,
-	thakifc_CLOSING
-} thakifc_client_state_t;
-
 typedef struct thakifc_client_s {
-	int              fd;
-	int              state;
-	int              wptr;
-	int              rptr;
-	char             rbuf[BUFSIZE];
-	char             wbuf[BUFSIZE];
-	thakifc_user_t   *user;
-	thakifc_server_t *server;
+	int                     fd;
+	int                     state;
+	int                     wptr;
+	int                     rptr;
+	char                    rbuf[BUFSIZE];
+	char                    wbuf[BUFSIZE];
+	thakifc_server_t        *server;
 } thakifc_client_t;
 
 typedef struct thakifc_client_cmd_s {
-	int              id;
-	int              nargs;
-	char             *name;
-	char             *desc;
+	int                     id;
+	int                     nargs;
+	char                    *name;
+	char                    *desc;
 } thakifc_cli_cmd_t;
 
-typedef struct userq userq_t;
-typedef TAILQ_HEAD(uhead, userq) uinr_head_t;
+typedef struct thakifc_cli_opts_s {
+	int                     verbose_flag;
+	int                     help_flag;
+	int                     cli_err;
+	int                     bg_flag;
+	int                     dir_flag;
+	int                     port;
+} thakifc_cli_t;
 
 /* Macros to deal with read circular buffer */
 #define RBUF_SIZE(c)           (sizeof(c)->rbuf)
@@ -109,15 +103,6 @@ typedef TAILQ_HEAD(uhead, userq) uinr_head_t;
 #define RBUF_IS_READ_OK(c, l)  RBUF_UNREAD_SIZE((c)) >= (l) 
 #define RBUF_IS_WRITE_OK(c, l) RBUF_WRITE_SIZE((c)) >= (l)
 #define RBUF_IS_EMPTY(c)       ((c)->wptr == (c)->rptr)
-
-typedef struct thakifc_cli_opts_s {
-	int      verbose_flag;
-	int      help_flag;
-	int      cli_err;
-	int      bg_flag;
-	int      dir_flag;
-	int      port;
-} thakifc_cli_t;
 
 thakifc_cli_t cliopts;
 
@@ -168,14 +153,14 @@ static thakifc_cmd_t ftp_cmds[] = {
 #define NUM_FTP_CMDS (sizeof(ftp_cmds)/sizeof(ftp_cmds[0]));
 
 static thakifc_cli_cmd_t cli_cmds[] = {
-	{ 1, 1, "help",       "Print help message"   },
-	{ 2, 0, "quit",       "Quit from shell"      },
-	{ 3, 0, "exit",       "Quit from shell"      },
-	{ 4, 0, "pwd",        "Print working dir"    },
-	{ 5, 0, "ls",         "List directory"       },
-	{ 6, 0, "list",       "List directory"       },
-	{ 7, 0, "dir",        "List directory"       },
-	{ 8, 0, "connect",    "Connect to server"    },
+	{ 1, 1, "help",       "Print help message"     },
+	{ 2, 0, "quit",       "Quit from shell"        },
+	{ 3, 0, "exit",       "Quit from shell"        },
+	{ 4, 0, "pwd",        "Print working dir"      },
+	{ 5, 0, "ls",         "List directory"         },
+	{ 6, 0, "list",       "List directory"         },
+	{ 7, 0, "dir",        "List directory"         },
+	{ 8, 0, "connect",    "Connect to server"      },
 	{ 9, 0, "disconnect", "Disconnect from server" }
 };
 
@@ -421,7 +406,7 @@ thakifc_close (thakifc_client_t *client)
 	//userq_t *u;
 	int uid, rid;
 
-	client->state = thakifc_CLOSING;
+	client->state = THAKIFC_CLOSING;
 
 	if (close(client->fd) == -1) {
 		perror("close");
@@ -480,7 +465,7 @@ thakifc_run (thakifc_server_t *server)
 				printf("Next wptr:%d\n", client->wptr);
 			}
 			/* Once joined, user may send a short message 'hi' */
-			if (client->state == thakifc_JOINED || (!RBUF_IS_EMPTY(client) && RBUF_UNREAD_SIZE(client) >= 9)) {
+			if ((!RBUF_IS_EMPTY(client) && RBUF_UNREAD_SIZE(client) >= 9)) {
 				handle_commands(client);
 				printf("rptr after handling:%d\n", client->rptr);
 			}
@@ -640,17 +625,12 @@ int
 main(int argc, char *argv[])
 {
 	thakifc_server_t thakifc;
+	thakifc_client_t client;
 	int redo = 1;
 
 	atexit(thakifc_closeup);
 
 	memset(&thakifc, 0, sizeof(thakifc_server_t));
-	thakifc.userslist = (thakifc_user_t **)malloc(MAX_USERS*sizeof(thakifc_user_t *));
-	if (thakifc.userslist == NULL) {
-		fprintf(stderr, "Failed to get memory for users and rooms\n");
-		exit(-2);
-	}
-	memset(thakifc.userslist, 0, MAX_USERS*sizeof(thakifc_user_t *));
 
 	thakifc.clients = (thakifc_client_t **)malloc(MAX_CLIENTS*sizeof(thakifc_client_t *));
 	if (thakifc.clients == NULL) {
@@ -690,13 +670,13 @@ main(int argc, char *argv[])
 						switch (cli_cmds[i].id) {
 						case 1:
 							handle_help();
-							/* TODO : if connected */
-							#if 0
-							thakifc_send_msg(&thakifc, "HELP dfsgf sfgsdfg sfdgsdfgs sdfgsdfg \r\n\n");
-							memset(buff, 0, sizeof(buff));
-							read(thakifc.fd, &buff, sizeof(buff));
-							printf("From server <%s>\n", buff);
-							#endif
+							/*  if connected */
+							if (thakifc.state == THAKIFC_CONNECTED) {
+								thakifc_send_msg(&thakifc, "HELP dfsgf sfgsdfg sfdgsdfgs sdfgsdfg \r\n\n");
+								memset(buff, 0, sizeof(buff));
+								read(thakifc.fd, &buff, sizeof(buff));
+								printf("From server <%s>\n", buff);
+							}
 							break;
 
 						case 2:
@@ -710,6 +690,8 @@ main(int argc, char *argv[])
 								fprintf(stderr, "Failed to start thakifc server on port %d\n", thakifc.port);
 								exit(-2);
 							}
+							/* else */
+							thakifc.state = THAKIFC_CONNECTED;
 							break;
 						}
 					}
