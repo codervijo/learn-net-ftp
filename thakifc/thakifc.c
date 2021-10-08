@@ -42,21 +42,17 @@ typedef enum {
 } thakifc_client_state_t;
 
 typedef struct {
-	int                     fd;
 	int                     port;
 	int                     tmp;
-	int 				    epoll_fd;
 	int                     state;
-	struct thakifc_client_s **clients;
 } thakifc_server_t;
 
-typedef struct thakifc_cmd_s {
+typedef struct thakifc_server_cmd_s {
 	int                     id;
 	int                     nargs;
 	char                    *name;
 	char                    *desc;
-	void                    (*handler)(struct thakifc_client_s *client);
-} thakifc_cmd_t;
+} thakifc_server_cmd_t;
 
 typedef struct thakifc_resp_s {
 	int                     id;
@@ -67,13 +63,22 @@ typedef struct thakifc_resp_s {
 
 typedef struct thakifc_client_s {
 	int                     fd;
+	int 				    epoll_fd;
 	int                     state;
 	int                     wptr;
 	int                     rptr;
 	char                    rbuf[BUFSIZE];
 	char                    wbuf[BUFSIZE];
+	struct thakifc_dcon_s   *dcon;
 	thakifc_server_t        *server;
 } thakifc_client_t;
+
+typedef struct thakifc_dcon_s {
+	int                     fd;
+	int                     port;
+	int                     state;
+	thakifc_client_t        *client;
+} thakifc_dcon_t;
 
 typedef struct thakifc_client_cmd_s {
 	int                     id;
@@ -113,7 +118,7 @@ static struct option long_options[] = {
 	{ 0, 0, 0, 0}
 };
 
-static thakifc_cmd_t ftp_cmds[] = {
+static thakifc_server_cmd_t ftp_cmds[] = {
     { 1, 1, THAKI_FTP_CMD_USER, THAKI_FTP_DSC_USER },
     { 2, 1, THAKI_FTP_CMD_PASS, THAKI_FTP_DSC_PASS },
     { 3, 1, THAKI_FTP_CMD_ACCT, THAKI_FTP_DSC_ACCT },
@@ -263,9 +268,10 @@ hash (char *str)
 }
 
 thakifc_status_t
-thakifc_connect (thakifc_server_t *srvr, int sport)
+thakifc_connect (thakifc_client_t *client, int sport)
 {
 	int                s = 0, fd = 0;
+	thakifc_server_t   *srvr = client->server;
 	struct sockaddr_in saddr = { 0 };
 	struct epoll_event event;
 
@@ -287,29 +293,29 @@ thakifc_connect (thakifc_server_t *srvr, int sport)
 
 	saddr.sin_family = AF_INET;
 	saddr.sin_port   = htons(sport);
-	srvr->fd  = fd;
-	printf("Set socket FD:%d\n", srvr->fd);
+	client->fd  = fd;
+	printf("Set socket FD:%d\n", client->fd);
 
 	s = inet_pton(AF_INET, "127.0.0.1", &(saddr.sin_addr));
 	if (connect(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
 		fprintf(stderr, "Failed to connect to server\n");
 		return FAILURE;
 	}
-	srvr->epoll_fd  = epoll_create1(0);
-	if (srvr->epoll_fd == -1) {
+	client->epoll_fd  = epoll_create1(0);
+	if (client->epoll_fd == -1) {
 		fprintf(stderr, "Epoll create failed\n");
 		/* Let us continue for now */
 	} else {
 		memset(&event, 0, sizeof(event));
 		event.events = EPOLLIN;
-		event.data.fd = srvr->fd;
+		event.data.fd = client->fd;
 
-		int status = fcntl(srvr->fd, F_SETFL, fcntl(srvr->fd, F_GETFL, 0) | O_NONBLOCK);	
+		int status = fcntl(client->fd, F_SETFL, fcntl(client->fd, F_GETFL, 0) | O_NONBLOCK);	
 		if (status == -1){
 	  		perror("calling fcntl");
 	  		// handle the error.  Doesn't usually fail.
 		}
-		if(epoll_ctl(srvr->epoll_fd, EPOLL_CTL_ADD, srvr->fd, &event))
+		if(epoll_ctl(client->epoll_fd, EPOLL_CTL_ADD, client->fd, &event))
 		{
 			fprintf(stderr, "Failed to add listen_fd file descriptor to epoll\n");
 			//server->epoll_fd = -1;
@@ -331,12 +337,12 @@ thakifc_addto_epoll (thakifc_client_t *client)
 	event.data.ptr = client;
 
 	errno = 0;
-	if(epoll_ctl(client->server->epoll_fd, EPOLL_CTL_ADD, client->fd, &event))
+	if(epoll_ctl(client->epoll_fd, EPOLL_CTL_ADD, client->fd, &event))
 	{
 		perror("epoll_ctl");
 		fprintf(stderr, "Failed to add file descriptor to epoll\n");
-		close(client->server->epoll_fd);
-		client->server->epoll_fd = -1;
+		close(client->epoll_fd);
+		client->epoll_fd = -1;
 		//return FAILURE;
 	}
 }
@@ -348,9 +354,9 @@ get_error_msg (void)
 }
 
 thakifc_status_t
-thakifc_send_msg (thakifc_server_t *server, char *msg)
+thakifc_send_msg (thakifc_client_t *client, char *msg)
 {
-	write(server->fd, msg, strlen(msg));
+	write(client->fd, msg, strlen(msg));
 	return SUCCESS;
 }
 
@@ -358,31 +364,6 @@ thakifc_status_t
 handle_error (thakifc_client_t *client)
 {
 	/* Not implemented */
-	return SUCCESS;
-}
-
-thakifc_status_t
-handle_commands (thakifc_client_t *client)
-{
-	while (! RBUF_IS_EMPTY(client)) {
-		/* Skip over any control characters */
-		while (client->rbuf[client->rptr] == 0 || iscntrl(client->rbuf[client->rptr]))
-			client->rptr = RBUF_INCR_RPTR(client, 1);
-		for (int i = 0; i < sizeof(ftp_cmds)/sizeof(thakifc_cmd_t); i++) {
-			if ((toupper((char)*RBUF_READ_START(client))) == ftp_cmds[i].name[0]) {
-				int n = strlen(ftp_cmds[i].name);
-				if (strncasecmp(ftp_cmds[i].name, RBUF_READ_START(client), n) == 0) {
-					printf("Found command %s\n", ftp_cmds[i].name);
-					client->rptr = RBUF_INCR_RPTR(client, n+1);
-					while (client->rbuf[client->rptr] == 0 || client->rbuf[client->rptr] != '\n')
-						client->rptr = RBUF_INCR_RPTR(client, 1);
-					(*ftp_cmds[i].handler)(client);
-					return SUCCESS;
-				}
-			}
-		}
-		printf("Command from client not found\n");
-	}
 	return SUCCESS;
 }
 
@@ -405,14 +386,15 @@ thakifc_close (thakifc_client_t *client)
 }
 
 void
-thakifc_run (thakifc_server_t *server)
+thakifc_run (thakifc_client_t *client)
 {
 	int                rlen = 0;
 	int 			   ecount;
+	thakifc_server_t   *server = client->server;
 	struct epoll_event events[MAX_EVENTS];
 
 	memset(events, 0, sizeof(events));
-    ecount = epoll_wait(server->epoll_fd, events, MAX_EVENTS, 3000);
+    ecount = epoll_wait(client->epoll_fd, events, MAX_EVENTS, 3000);
     fprintf(stderr, "%d ready events\n", ecount);
     for(int i = 0; i < ecount; i++)
     {
@@ -452,7 +434,7 @@ thakifc_run (thakifc_server_t *server)
 			}
 			/* Once joined, user may send a short message 'hi' */
 			if ((!RBUF_IS_EMPTY(client) && RBUF_UNREAD_SIZE(client) >= 9)) {
-				handle_commands(client);
+				//handle_commands(client);
 				printf("rptr after handling:%d\n", client->rptr);
 			}
 		} while (rlen > 0);
@@ -498,7 +480,7 @@ daemonize (void)
 }
 
 thakifc_status_t
-handle_args (int argc, char *argv[], thakifc_server_t *server)
+handle_args (int argc, char *argv[], thakifc_client_t *client)
 {
 	optind = 0;
 	while (1) {
@@ -578,7 +560,7 @@ handle_args (int argc, char *argv[], thakifc_server_t *server)
 			fprintf(stderr, "\n");
 			return FAILURE;
 		}
-		server->port = pport;
+		client->dcon->port = pport;
     }
 
 	return SUCCESS;
@@ -603,29 +585,37 @@ handle_help (void)
 		printf("\t%s\t:\t%s\n", cli_cmds[i].name, cli_cmds[i].desc);
 	}
 
-	/* TODO if connected print server help */
 	return 0;
 }
 
 int
 main(int argc, char *argv[])
 {
-	thakifc_server_t thakifc;
-	thakifc_client_t client;
+	thakifc_client_t *client;
 	int redo = 1;
 
 	atexit(thakifc_closeup);
 
-	memset(&thakifc, 0, sizeof(thakifc_server_t));
+    client = (thakifc_client_t *)malloc(sizeof(thakifc_client_t));
+    if (client == NULL) {
+    	fprintf(stderr, "Failed to get memory for client\n");
+    	exit(-2);
+    }
+	memset(client, 0, sizeof(thakifc_client_t));
 
-	thakifc.clients = (thakifc_client_t **)malloc(MAX_CLIENTS*sizeof(thakifc_client_t *));
-	if (thakifc.clients == NULL) {
-		fprintf(stderr, "Failed to allocate memory for client\n");
+	client->server = (thakifc_server_t *)malloc(sizeof(thakifc_server_t));
+	if (client->server == NULL) {
+		fprintf(stderr, "Failed to allocate memory for client->server\n");
+		exit(-2);
+	}
+	client->dcon = (thakifc_dcon_t *)malloc(sizeof(thakifc_dcon_t));
+	if (client->dcon == NULL) {
+		fprintf(stderr, "Failed to allocate memory for client->dcon\n");
 		exit(-2);
 	}
 
-	thakifc.port = THAKIFD_PORT;
-	if (handle_args(argc, argv, &thakifc) == FAILURE) {
+	//thakifc.port = THAKIFD_PORT;
+	if (handle_args(argc, argv, client) == FAILURE) {
 		fprintf(stderr, "Failed to parse options to continue\n");
 		exit(-2);
 	}
@@ -657,27 +647,27 @@ main(int argc, char *argv[])
 						case 1:
 							handle_help();
 							/*  if connected show server side help */
-							if (thakifc.state == THAKIFC_CONNECTED) {
-								thakifc_send_msg(&thakifc, "HELP dfsgf sfgsdfg sfdgsdfgs sdfgsdfg \r\n\n");
+							if (client->state == THAKIFC_CONNECTED) {
+								thakifc_send_msg(client, "HELP dfsgf sfgsdfg sfdgsdfgs sdfgsdfg \r\n\n");
 								memset(buff, 0, sizeof(buff));
-								read(thakifc.fd, &buff, sizeof(buff));
+								read(client->fd, &buff, sizeof(buff));
 								printf("From server <%s>\n", buff);
 							}
 							break;
 
 						case 2:
 						case 3:
-							thakifc_send_msg(&thakifc, "ABOR");
+							thakifc_send_msg(client, "ABOR");
 							exit(0);
 
 						case 8:
 							sport = 1234;//atoi(line[li+2]);
-							if (thakifc_connect(&thakifc, sport) == FAILURE) {
-								fprintf(stderr, "Failed to start thakifc server on port %d\n", thakifc.port);
+							if (thakifc_connect(client, sport) == FAILURE) {
+								fprintf(stderr, "Failed to start thakifc server on port %d\n", client->server->port);
 								exit(-2);
 							}
 							/* else */
-							thakifc.state = THAKIFC_CONNECTED;
+							client->state = THAKIFC_CONNECTED;
 							break;
 						}
 					}
